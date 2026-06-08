@@ -21,7 +21,8 @@ const CONFIG = {
   //        onto the CTA button (with a small settle bounce).
   ballStartDelayMs:  250,      // pause after load before the ball appears + drops
   ballDropToVideoMs: 720,      // fall-in from off-screen top onto the video
-  ballFadeMs:        260,      // fade-out once the user taps to play
+  videoStartLeadMs:  180,      // video starts (muted) this long BEFORE the ball finishes its drop
+  ballFadeMs:        260,      // fade-out once the ball lands on the video
   ballRespawnFallMs: 820,      // drop from under the video down onto the CTA
   ballSettleHopPx:   26,       // height of the little bounce when it hits the CTA
   ballSettleMs:      170,      // duration of each half of that settle bounce
@@ -310,21 +311,25 @@ function runHeroBall() {
   ball.style.opacity = "0";
   void ball.offsetWidth;                                        // commit before animating
 
-  // after the start delay: autoplay the video MUTED (so a later tap can reliably
-  // UNMUTE it), reveal the ball, fall onto the video, then bounce there as a lure
+  // after the start delay: reveal the ball and fall onto the video
   setTimeout(function () {
-    if (!videoTapped) {                                         // unless the user already tapped
-      video.muted = true;
-      var ap = video.play();
-      if (ap && ap.catch) { ap.catch(function () {}); }
-      syncSoundToggle();
-    }
-    // end of if-block
-
     ball.style.transition = "opacity 160ms ease";
     ball.style.opacity = "1";
 
     var landY = vid.top + half + 6;                             // resting on the video
+
+    // start the video MUTED a touch BEFORE the ball lands, so the ball "kicks" it
+    // into motion (a later tap reliably UNMUTES the already-playing video)
+    setTimeout(function () {
+      if (!videoTapped) {                                       // unless the user already tapped
+        video.muted = true;
+        var ap = video.play();
+        if (ap && ap.catch) { ap.catch(function () {}); }
+        syncSoundToggle();
+      }
+      // end of if-block
+    }, Math.max(0, CONFIG.ballDropToVideoMs - CONFIG.videoStartLeadMs));
+
     dropBallTo(ball, vid.cx, landY, CONFIG.ballDropToVideoMs, 240, CONFIG.ballFallEase, function () {
       // landed -> fade out (the video is autoplaying; ACT 2 brings the ball back to the CTA)
       ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
