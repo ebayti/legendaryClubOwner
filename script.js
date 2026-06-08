@@ -21,8 +21,7 @@ const CONFIG = {
   //        onto the CTA button (with a small settle bounce).
   ballStartDelayMs:  250,      // pause after load before the ball appears + drops
   ballDropToVideoMs: 720,      // fall-in from off-screen top onto the video
-  videoStartLeadMs:  180,      // video starts this long BEFORE the ball finishes its drop
-  ballFadeMs:        260,      // fade-out once it lands on the video
+  ballFadeMs:        260,      // fade-out once the user taps to play
   ballRespawnFallMs: 820,      // drop from under the video down onto the CTA
   ballSettleHopPx:   26,       // height of the little bounce when it hits the CTA
   ballSettleMs:      170,      // duration of each half of that settle bounce
@@ -157,27 +156,12 @@ function dropBallTo(ball, x, y, ms, spin, vEase, done) {
 }
 // end of dropBallTo()
 
-// we'd like sound ON, but autoplay is only allowed when MUTED (browser policy).
-// so we try with sound, fall back to muted if blocked, and the corner button
-// lets Alex turn sound on (his click is the gesture the browser requires).
+// the video plays WITH sound, but only after a user gesture (browser policy). So
+// the ball bounces on the video as a lure and the first tap starts it with sound.
 var userWantsSound = true;
-
-// starts the video. tries with sound; if the browser blocks unmuted autoplay we
-// fall back to muted so the drop -> play -> end flow still runs, then sync the toggle.
-function playVideo(video) {
-  video.muted = !userWantsSound;
-  var p = video.play();
-  if (p && p.catch) {
-    p.catch(function () {
-      userWantsSound = false;                                   // sound was refused
-      video.muted = true;
-      video.play().catch(function () {});                       // retry muted
-      syncSoundToggle();
-    });
-  }
-  syncSoundToggle();
-}
-// end of playVideo()
+var videoTapped    = false;   // true once the first tap has started the video
+var heroIdleActive = false;   // true while the ball bounces on the video, awaiting a tap
+var heroTapWired   = false;   // the document tap handler is armed only once
 
 // makes the corner button's icon + labels match the video's real mute state
 function syncSoundToggle() {
@@ -218,46 +202,74 @@ function wireSoundToggle() {
 }
 // end of wireSoundToggle()
 
-// browsers block unmuted autoplay until the user interacts. so we start muted and
-// flip sound ON at the FIRST gesture anywhere on the page (tap / click / key) —
-// the closest thing to "sound on" that the autoplay policy actually allows.
-var autoUnmuteDone = false;
-function armAutoUnmute() {
-  var video = document.getElementById("hero-video");
+// the ball bounces in place on the video until the user taps. stops the instant
+// `heroIdleActive` goes false (a tap was registered).
+function heroIdleBounce(ball, cx, restY) {
+  heroIdleActive = true;
+  var hop  = 30;
+  var upMs = 360;
+  var spin = 220;
 
-  // guard clause: nothing to unmute
-  if (!video) {
-    return;                                                     // nothing to do
+  function up() {
+    if (!heroIdleActive) { return; }                            // tapped -> stop
+    spin += 50;
+    dropBallTo(ball, cx, restY - hop, upMs, spin, CONFIG.ballRiseEase, function () {
+      if (!heroIdleActive) { return; }
+      spin += 50;
+      dropBallTo(ball, cx, restY, Math.round(upMs * 0.9), spin, CONFIG.ballFallEase, up);
+    });
   }
-  // end of if-block
+  // end of up()
 
-  function turnOn() {
-    if (autoUnmuteDone) { return; }
-    autoUnmuteDone = true;
-    document.removeEventListener("pointerdown", turnOn);
-    document.removeEventListener("keydown", turnOn);
-
-    // only if the clip is still playing (don't un-end a finished video)
-    if (!video.ended) {
-      userWantsSound = true;
-      video.muted = false;
-      var p = video.play();
-      if (p && p.catch) { p.catch(function () {}); }
-      syncSoundToggle();
-    }
-    // end of if-block
-  }
-  // end of turnOn()
-
-  document.addEventListener("pointerdown", turnOn);
-  document.addEventListener("keydown", turnOn);
+  up();
 }
-// end of armAutoUnmute()
+// end of heroIdleBounce()
+
+// arms a one-time "first tap anywhere" handler: it plays the video WITH SOUND
+// (the tap is the gesture the browser needs), stops the lure bounce and fades the
+// ball out. ACT 2 brings the ball back near the video's end.
+function wireHeroTap(video, ball) {
+  if (heroTapWired) { return; }
+  heroTapWired = true;
+
+  function go(e) {
+    document.removeEventListener("pointerdown", go);
+    document.removeEventListener("keydown", go);
+    videoTapped = true;
+    heroIdleActive = false;                                     // stop the lure bounce
+
+    // the lure ball did its job — fade it out
+    ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
+    ball.style.opacity = "0";
+
+    // if the tap landed on the sound toggle, let ITS handler play/unmute
+    var onToggle = e && e.target && e.target.closest && e.target.closest("#video-sound-toggle");
+    if (onToggle) { return; }
+
+    userWantsSound = true;
+    video.muted = false;                                        // the tap allows sound
+    var p = video.play();
+    if (p && p.catch) {
+      p.catch(function () {                                      // blocked? fall back to muted
+        video.muted = true;
+        video.play().catch(function () {});
+        syncSoundToggle();
+      });
+    }
+    syncSoundToggle();
+  }
+  // end of go()
+
+  document.addEventListener("pointerdown", go);
+  document.addEventListener("keydown", go);
+}
+// end of wireHeroTap()
 
 var heroBallStarted = false;   // guard so the sequence only ever runs once
 
-// ACT 1: drop the ball onto the video, fade it out, then autoplay the video.
-// ACT 2 (see below): ball drops onto the CTA ~200ms before the video ends.
+// ACT 1: the ball drops onto the video and BOUNCES there as a "tap to play" lure.
+// The first tap anywhere starts the video WITH SOUND (see wireHeroTap).
+// ACT 2 (below): the ball drops onto the CTA shortly before the video ends.
 function runHeroBall() {
   if (heroBallStarted) { return; }                              // run once only
   heroBallStarted = true;
@@ -276,10 +288,12 @@ function runHeroBall() {
 
   ball.style.marginLeft = "0";                                  // we position by centre instead
 
-  // respect reduced-motion: skip the drama, autoplay the video, rest the ball on the CTA
+  // arm the tap-to-play handler now (works even if the user taps mid-drop)
+  wireHeroTap(video, ball);
+
+  // respect reduced-motion: skip the drama, rest the ball on the CTA (tap still plays)
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     settleBallOnCta(hero, ball, cta);
-    playVideo(video);
     return;                                                     // no animation
   }
   // end of if-block
@@ -295,23 +309,15 @@ function runHeroBall() {
   ball.style.opacity = "0";
   void ball.offsetWidth;                                        // commit before animating
 
-  // after the start delay: reveal, then fall onto the top of the video
+  // after the start delay: reveal, fall onto the video, then bounce there as a lure
   setTimeout(function () {
     ball.style.transition = "opacity 160ms ease";
     ball.style.opacity = "1";
 
     var landY = vid.top + half + 6;                             // resting on the video
-
-    // start the video a touch BEFORE the ball finishes landing, so it feels like
-    // the ball "kicks" the video into motion
-    setTimeout(function () {
-      playVideo(video);
-    }, Math.max(0, CONFIG.ballDropToVideoMs - CONFIG.videoStartLeadMs));
-
     dropBallTo(ball, vid.cx, landY, CONFIG.ballDropToVideoMs, 240, CONFIG.ballFallEase, function () {
-      // landed on the video -> fade the ball out
-      ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
-      ball.style.opacity = "0";
+      // landed -> bounce on the video until a tap plays it (unless already tapped)
+      if (!videoTapped) { heroIdleBounce(ball, vid.cx, landY); }
     });
   }, CONFIG.ballStartDelayMs);
 
@@ -466,11 +472,11 @@ function startBuilderBall() {
   function next() {
     if (!builderTourActive) { return; }                          // a choice cancelled the tour
     if (i < cards.length) {
-      // centre the card and hop on it TWICE (dwell so people can read it)
-      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 440, hops: 2, done: next });
+      // centre the card and hop on it TWICE (slower descent + dwell, so it's readable)
+      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 760, hops: 2, done: next });
     } else {
       // land on kickoff, but anchor the scroll to the builder TOP so the heading shows
-      glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 560, hops: 0, done: function () {
+      glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 640, hops: 0, done: function () {
         builderTourActive = false;                               // tour done
         handoffBuilderBallToIdle(builder, ball, kickoff);        // bounce on the button
       } });
@@ -555,9 +561,9 @@ function glideBallToEl(ball, landEl, opts) {
 function bounceBall(ball, cx, restY, hops, done) {
   function hop(n) {
     if (!builderTourActive) { return; }                          // cancelled mid-hop
-    dropBallTo(ball, cx, restY - 22, 190, 520, CONFIG.ballRiseEase, function () {
+    dropBallTo(ball, cx, restY - 26, 240, 520, CONFIG.ballRiseEase, function () {
       if (!builderTourActive) { return; }
-      dropBallTo(ball, cx, restY, 180, 570, CONFIG.ballFallEase, function () {
+      dropBallTo(ball, cx, restY, 260, 570, CONFIG.ballFallEase, function () {
         if (!builderTourActive) { return; }
         if (n > 1) { hop(n - 1); }
         else if (done) { done(); }
@@ -1283,7 +1289,6 @@ function formatTime(ms) {
 function init() {
   watchHero();                                                  // arm the hero ball
   wireSoundToggle();                                            // arm the mute/unmute button
-  armAutoUnmute();                                              // sound ON at first interaction
   wireBuilder();                                                // arm the formation cards
 
   var cta = document.getElementById("cta");
