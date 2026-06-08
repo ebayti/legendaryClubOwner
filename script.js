@@ -218,6 +218,42 @@ function wireSoundToggle() {
 }
 // end of wireSoundToggle()
 
+// browsers block unmuted autoplay until the user interacts. so we start muted and
+// flip sound ON at the FIRST gesture anywhere on the page (tap / click / key) —
+// the closest thing to "sound on" that the autoplay policy actually allows.
+var autoUnmuteDone = false;
+function armAutoUnmute() {
+  var video = document.getElementById("hero-video");
+
+  // guard clause: nothing to unmute
+  if (!video) {
+    return;                                                     // nothing to do
+  }
+  // end of if-block
+
+  function turnOn() {
+    if (autoUnmuteDone) { return; }
+    autoUnmuteDone = true;
+    document.removeEventListener("pointerdown", turnOn);
+    document.removeEventListener("keydown", turnOn);
+
+    // only if the clip is still playing (don't un-end a finished video)
+    if (!video.ended) {
+      userWantsSound = true;
+      video.muted = false;
+      var p = video.play();
+      if (p && p.catch) { p.catch(function () {}); }
+      syncSoundToggle();
+    }
+    // end of if-block
+  }
+  // end of turnOn()
+
+  document.addEventListener("pointerdown", turnOn);
+  document.addEventListener("keydown", turnOn);
+}
+// end of armAutoUnmute()
+
 var heroBallStarted = false;   // guard so the sequence only ever runs once
 
 // ACT 1: drop the ball onto the video, fade it out, then autoplay the video.
@@ -1228,6 +1264,7 @@ function formatTime(ms) {
 function init() {
   watchHero();                                                  // arm the hero ball
   wireSoundToggle();                                            // arm the mute/unmute button
+  armAutoUnmute();                                              // sound ON at first interaction
   wireBuilder();                                                // arm the formation cards
 
   var cta = document.getElementById("cta");
