@@ -148,12 +148,19 @@ body {
   line-height: 1.25;
   font-weight: 600;
   color: var(--ink);
-  background: linear-gradient(to top, rgba(5,17,14,0.92), rgba(5,17,14,0));
+  background: linear-gradient(to top, rgba(5,17,14,0.94), rgba(5,17,14,0));
   pointer-events: none;          /* taps fall through to the page/video */
   animation: tapPulse 1.6s ease-in-out infinite;
   transition: opacity 0.3s ease;
 }
-.hero-tap-hint strong { color: var(--neon); }
+.hero-tap-hint .hint-cta {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--neon);            /* the CTA line pops */
+}
+.hero-tap-hint .hint-cta strong { text-decoration: underline; text-underline-offset: 3px; }
 .hero-tap-hint.gone { opacity: 0; }
 @keyframes tapPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 

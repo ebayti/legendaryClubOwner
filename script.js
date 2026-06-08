@@ -236,8 +236,10 @@ function heroIdleBounce(ball, cx, restY) {
 }
 // end of heroIdleBounce()
 
-// ONE tap = play the video AND turn sound on. Stops the lure bounce, fades the
-// ball + the tap hint. Shared by the screen-tap handler and the sound button.
+// ONE tap = turn the sound ON. The video is already autoplaying MUTED, and
+// UNMUTING an already-playing video on a gesture is what browsers reliably allow
+// (starting an unmuted video from scratch often gets downgraded to muted). Also
+// stops the lure bounce and fades the ball + the tap hint.
 function startHeroVideoWithSound() {
   var video = document.getElementById("hero-video");
   var ball  = document.getElementById("hero-ball");
@@ -260,15 +262,9 @@ function startHeroVideoWithSound() {
   if (hint) { hint.classList.add("gone"); }                    // fade the tap prompt
 
   userWantsSound = true;
-  video.muted = false;                                          // the tap allows sound
-  var p = video.play();
-  if (p && p.catch) {
-    p.catch(function () {                                        // blocked? fall back to muted
-      video.muted = true;
-      video.play().catch(function () {});
-      syncSoundToggle();
-    });
-  }
+  video.muted = false;                                          // unmute the already-playing video
+  var p = video.play();                                         // safety; it's usually already playing
+  if (p && p.catch) { p.catch(function () {}); }
   syncSoundToggle();
 }
 // end of startHeroVideoWithSound()
@@ -316,10 +312,14 @@ function runHeroBall() {
   // arm the tap-to-play handler now (works even if the user taps mid-drop)
   wireHeroTap();
 
-  // respect reduced-motion: skip the drama, rest the ball on the CTA (tap still plays)
+  // respect reduced-motion: skip the drama, autoplay muted, rest the ball on the CTA
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     settleBallOnCta(hero, ball, cta);
-    return;                                                     // no animation
+    video.muted = true;
+    var rp = video.play();
+    if (rp && rp.catch) { rp.catch(function () {}); }
+    syncSoundToggle();
+    return;                                                     // no animation (tap still unmutes)
   }
   // end of if-block
 
@@ -334,14 +334,23 @@ function runHeroBall() {
   ball.style.opacity = "0";
   void ball.offsetWidth;                                        // commit before animating
 
-  // after the start delay: reveal, fall onto the video, then bounce there as a lure
+  // after the start delay: autoplay the video MUTED (so a later tap can reliably
+  // UNMUTE it), reveal the ball, fall onto the video, then bounce there as a lure
   setTimeout(function () {
+    if (!videoTapped) {                                         // unless the user already tapped
+      video.muted = true;
+      var ap = video.play();
+      if (ap && ap.catch) { ap.catch(function () {}); }
+      syncSoundToggle();
+    }
+    // end of if-block
+
     ball.style.transition = "opacity 160ms ease";
     ball.style.opacity = "1";
 
     var landY = vid.top + half + 6;                             // resting on the video
     dropBallTo(ball, vid.cx, landY, CONFIG.ballDropToVideoMs, 240, CONFIG.ballFallEase, function () {
-      // landed -> bounce on the video until a tap plays it (unless already tapped)
+      // landed -> bounce on the video until a tap unmutes it (unless already tapped)
       if (!videoTapped) { heroIdleBounce(ball, vid.cx, landY); }
     });
   }, CONFIG.ballStartDelayMs);
@@ -378,6 +387,7 @@ function runHeroBall() {
 // ACT 2 — the ball reappears just under the video and drops onto the CTA button,
 // finishing with a small settle bounce so it reads as landing, not teleporting.
 function respawnBallToCta(hero, ball, box, cta) {
+  heroIdleActive = false;                                       // stop the lure bounce if still running
   var heroRect = hero.getBoundingClientRect();                  // re-read: layout may have shifted
   var vid  = rectInHero(box, heroRect);
   var ctaR = rectInHero(cta, heroRect);
@@ -489,19 +499,19 @@ function startBuilderBall() {
   placeBall(ball, ctaRect.left + ctaRect.width / 2, ctaRect.top - half - 2);
   ball.style.transform = "rotate(0deg)";
 
-  // visit each proof card (two hops each, so they're readable), then finish on
-  // the kickoff button — scrolled so the builder TITLE is in view, not cut off
+  // each proof card: glide DOWN onto it, then a single LIFT up — and the NEXT
+  // glide descends from that apex, so it reads as one natural bounce-and-fall (no
+  // stutter). finish on the kickoff button, scrolled so the builder TITLE shows.
   builderTourActive = true;
   var cards = Array.prototype.slice.call(document.querySelectorAll(".proof-card"));
   var i = 0;
   function next() {
     if (!builderTourActive) { return; }                          // a choice cancelled the tour
     if (i < cards.length) {
-      // centre the card and hop on it ONCE (a bit higher, natural arc) so it's readable
-      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 760, hops: 1, done: next });
+      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 760, lift: true, done: next });
     } else {
       // land on kickoff, but anchor the scroll to the builder TOP so the heading shows
-      glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 640, hops: 0, done: function () {
+      glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 640, lift: false, done: function () {
         builderTourActive = false;                               // tour done
         handoffBuilderBallToIdle(builder, ball, kickoff);        // bounce on the button
       } });
@@ -519,7 +529,7 @@ function startBuilderBall() {
 //   scrollEl     — element the scroll aligns to (defaults to landEl)
 //   anchorCenter — align the anchor's CENTRE (true) or its TOP (false) to vhFrac
 //   T            — duration (ms)
-//   hops         — number of in-place hops on arrival (0 = none)
+//   lift         — after arrival, rise once so the next glide descends from the apex
 //   done         — called when finished
 function glideBallToEl(ball, landEl, opts) {
   var scrollEl = opts.scrollEl || landEl;
@@ -569,8 +579,8 @@ function glideBallToEl(ball, landEl, opts) {
     // end of if-block
 
     htmlEl.style.scrollBehavior = prevBehavior;                 // restore smooth scroll
-    if (opts.hops > 0) {
-      bounceBall(ball, endX, endY, opts.hops, opts.done);
+    if (opts.lift) {
+      liftBall(ball, endX, endY, opts.done);
     } else if (opts.done) {
       opts.done();
     }
@@ -582,25 +592,16 @@ function glideBallToEl(ball, landEl, opts) {
 }
 // end of glideBallToEl()
 
-// `hops` quick hops in place (ball stays viewport-fixed; the page is static here)
-function bounceBall(ball, cx, restY, hops, done) {
-  function hop(n) {
-    if (!builderTourActive) { return; }                          // cancelled mid-hop
-    // up a good height (decelerating), then a natural accelerating fall
-    dropBallTo(ball, cx, restY - 44, 300, 520, CONFIG.ballRiseEase, function () {
-      if (!builderTourActive) { return; }
-      dropBallTo(ball, cx, restY, 380, 570, CONFIG.ballFallEase, function () {
-        if (!builderTourActive) { return; }
-        if (n > 1) { hop(n - 1); }
-        else if (done) { done(); }
-      });
-    });
-  }
-  // end of hop()
-
-  hop(hops);
+// a single rise after landing on a card (decelerating to an apex). The next glide
+// then descends FROM this apex, so a card visit reads as one natural bounce + fall
+// rather than land-bounce-land-then-move (which stuttered).
+function liftBall(ball, cx, fromY, done) {
+  dropBallTo(ball, cx, fromY - 52, 360, 540, CONFIG.ballRiseEase, function () {
+    if (!builderTourActive) { return; }                          // cancelled mid-lift
+    if (done) { done(); }
+  });
 }
-// end of bounceBall()
+// end of liftBall()
 
 // switches the ball from viewport-fixed back to absolute-in-builder (so it tracks
 // the button if the page scrolls) and starts the idle bounce on the kickoff button
