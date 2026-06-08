@@ -458,19 +458,22 @@ function startBuilderBall() {
   placeBall(ball, ctaRect.left + ctaRect.width / 2, ctaRect.top - half - 2);
   ball.style.transform = "rotate(0deg)";
 
-  // visit each proof card once, then finish on the kickoff button
+  // visit each proof card (two hops each, so they're readable), then finish on
+  // the kickoff button — scrolled so the builder TITLE is in view, not cut off
   builderTourActive = true;
   var cards = Array.prototype.slice.call(document.querySelectorAll(".proof-card"));
   var i = 0;
   function next() {
     if (!builderTourActive) { return; }                          // a choice cancelled the tour
     if (i < cards.length) {
-      glideBallToEl(ball, cards[i++], 0.5, 440, true, next);     // centre + hop on the card
+      // centre the card and hop on it TWICE (dwell so people can read it)
+      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 440, hops: 2, done: next });
     } else {
-      glideBallToEl(ball, kickoff, 0.62, 540, false, function () {
+      // land on kickoff, but anchor the scroll to the builder TOP so the heading shows
+      glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 560, hops: 0, done: function () {
         builderTourActive = false;                               // tour done
         handoffBuilderBallToIdle(builder, ball, kickoff);        // bounce on the button
-      });
+      } });
     }
   }
   // end of next()
@@ -479,21 +482,30 @@ function startBuilderBall() {
 }
 // end of startBuilderBall()
 
-// glides the viewport-fixed ball so it rests on top of `el`, scrolling the page so
-// `el` sits at `vhFrac` of the viewport — both driven by one eased clock. Optionally
-// adds a single hop on arrival, then calls done().
-function glideBallToEl(ball, el, vhFrac, T, hopOnArrival, done) {
+// glides the viewport-fixed ball onto `landEl`, driving the page scroll from the
+// SAME eased clock. opts:
+//   vhFrac       — where the scroll anchor sits in the viewport (0 = top, 0.5 = middle)
+//   scrollEl     — element the scroll aligns to (defaults to landEl)
+//   anchorCenter — align the anchor's CENTRE (true) or its TOP (false) to vhFrac
+//   T            — duration (ms)
+//   hops         — number of in-place hops on arrival (0 = none)
+//   done         — called when finished
+function glideBallToEl(ball, landEl, opts) {
+  var scrollEl = opts.scrollEl || landEl;
   var startScroll = window.pageYOffset;
   var vh          = window.innerHeight;
-  var rect        = el.getBoundingClientRect();
-  var elAbsTop    = rect.top + startScroll;                     // document-space
-  var elAbsCenter = elAbsTop + rect.height / 2;
   var maxScroll   = Math.max(0, document.documentElement.scrollHeight - vh);
-  var targetScroll = clamp(elAbsCenter - vh * vhFrac, 0, maxScroll);
 
-  var half = ball.offsetWidth / 2;
-  var endX = rect.left + rect.width / 2;
-  var endY = (elAbsTop - targetScroll) - half - 2;              // rest just on top of el
+  // scroll so the anchor sits at vhFrac of the viewport
+  var sRect      = scrollEl.getBoundingClientRect();
+  var sAnchorAbs = sRect.top + startScroll + (opts.anchorCenter ? sRect.height / 2 : 0);
+  var targetScroll = clamp(sAnchorAbs - vh * opts.vhFrac, 0, maxScroll);
+
+  // land the ball just on top of landEl at that target scroll
+  var lRect = landEl.getBoundingClientRect();
+  var half  = ball.offsetWidth / 2;
+  var endX  = lRect.left + lRect.width / 2;
+  var endY  = (lRect.top + startScroll - targetScroll) - half - 2;
 
   // current (fixed) ball centre = where the previous segment left it
   ball.style.transition = "none";
@@ -513,7 +525,7 @@ function glideBallToEl(ball, el, vhFrac, T, hopOnArrival, done) {
     }
     // end of if-block
 
-    var t = clamp((now - t0) / T, 0, 1);
+    var t = clamp((now - t0) / opts.T, 0, 1);
     var e = easeInOut(t);
     window.scrollTo(0, startScroll + (targetScroll - startScroll) * e);
     placeBall(ball, startX + (endX - startX) * e, startY + (endY - startY) * e);
@@ -526,10 +538,10 @@ function glideBallToEl(ball, el, vhFrac, T, hopOnArrival, done) {
     // end of if-block
 
     htmlEl.style.scrollBehavior = prevBehavior;                 // restore smooth scroll
-    if (hopOnArrival) {
-      bounceBallOnce(ball, endX, endY, done);
-    } else if (done) {
-      done();
+    if (opts.hops > 0) {
+      bounceBall(ball, endX, endY, opts.hops, opts.done);
+    } else if (opts.done) {
+      opts.done();
     }
     // end of if-block
   }
@@ -539,17 +551,24 @@ function glideBallToEl(ball, el, vhFrac, T, hopOnArrival, done) {
 }
 // end of glideBallToEl()
 
-// one quick hop in place (ball stays viewport-fixed; the page is static here)
-function bounceBallOnce(ball, cx, restY, done) {
-  dropBallTo(ball, cx, restY - 22, 190, 520, CONFIG.ballRiseEase, function () {
+// `hops` quick hops in place (ball stays viewport-fixed; the page is static here)
+function bounceBall(ball, cx, restY, hops, done) {
+  function hop(n) {
     if (!builderTourActive) { return; }                          // cancelled mid-hop
-    dropBallTo(ball, cx, restY, 180, 570, CONFIG.ballFallEase, function () {
+    dropBallTo(ball, cx, restY - 22, 190, 520, CONFIG.ballRiseEase, function () {
       if (!builderTourActive) { return; }
-      if (done) { done(); }
+      dropBallTo(ball, cx, restY, 180, 570, CONFIG.ballFallEase, function () {
+        if (!builderTourActive) { return; }
+        if (n > 1) { hop(n - 1); }
+        else if (done) { done(); }
+      });
     });
-  });
+  }
+  // end of hop()
+
+  hop(hops);
 }
-// end of bounceBallOnce()
+// end of bounceBall()
 
 // switches the ball from viewport-fixed back to absolute-in-builder (so it tracks
 // the button if the page scrolls) and starts the idle bounce on the kickoff button
