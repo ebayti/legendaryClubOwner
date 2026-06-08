@@ -119,7 +119,7 @@ body {
   display: inline-block;
   line-height: 0;                /* kill the inline-gap under the video */
   /* sits a little lower so the ball has more height to drop in from the top */
-  margin: clamp(28px, 8vh, 84px) auto 30px;
+  margin: clamp(14px, 4vh, 56px) auto 24px;
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--line);
@@ -130,7 +130,7 @@ body {
   width: auto;
   height: auto;
   max-width: min(460px, 82vw);   /* never wider than the column or the phone */
-  max-height: 52svh;             /* leave room for the headline + CTA below */
+  max-height: 48svh;             /* leave room for the headline + CTA below */
 }
 
 /* tap-to-unmute pill in the corner of the video */
@@ -162,7 +162,7 @@ body {
 }
 
 .subheadline {
-  margin: 30px auto 34px;
+  margin: clamp(16px, 3vw, 30px) auto clamp(18px, 3vw, 32px);
   max-width: 560px;
   font-size: clamp(1rem, 2.6vw, 1.25rem);
   color: var(--muted);
@@ -472,7 +472,15 @@ body {
   /* smaller balls + slightly tighter video on phones */
   .hero-ball { width: 38px; height: 38px; margin-left: -19px; }
   .builder-ball { width: 34px; height: 34px; }
-  .hero-video { max-height: 44svh; }
+
+  /* compact the hero so the whole thing (video + headline + CTA) fits one screen */
+  .hero { padding: 18px; }
+  .hero-kicker { margin-bottom: 12px; }
+  .hero-video-wrap { margin: 10px auto 16px; }
+  .hero-video { max-height: 40svh; }
+  .headline { font-size: clamp(2.1rem, 9vw, 3rem); }
+  .subheadline { margin: 12px auto 18px; font-size: 0.98rem; }
+  .cta { font-size: 1.2rem; padding: 14px 30px; }
 }
 
 /* respect reduced-motion preference */
