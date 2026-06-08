@@ -378,6 +378,7 @@ function watchHero() {
 
 var builderBallArmed = false;   // CTA tapped -> ball brought into the picker
 var builderBallIdle  = false;   // true while it bounces, waiting for a choice
+var builderTourActive = false;  // true while the ball is touring the proof cards
 
 // whether the user asked the OS to reduce motion
 function prefersReducedMotion() {
@@ -385,10 +386,12 @@ function prefersReducedMotion() {
 }
 // end of prefersReducedMotion()
 
-// CTA tapped: the ball travels from the CTA onto the kickoff button as ONE motion.
-// The page scroll AND a viewport-fixed ball are driven from the SAME eased clock,
-// so they stay locked together (no disconnect between the ball and the button).
-// On arrival the ball is handed back to the builder and bounces on the button.
+// CTA tapped: the ball leaves the CTA and tours the page as ONE continuous motion
+// — it hops once on each proof card (LIVE NOW, REAL CASH, FAIR, SKILL), scrolling
+// so each one is centred (so mobile users actually SEE them), then lands on the
+// kickoff button and bounces there until a formation is chosen. The page scroll
+// and a viewport-fixed ball are driven from the SAME eased clock, so they stay
+// locked together the whole way down (no disconnect).
 function startBuilderBall() {
   if (builderBallArmed) { return; }                             // first tap only
   builderBallArmed = true;
@@ -405,23 +408,8 @@ function startBuilderBall() {
   }
   // end of if-block
 
-  var half        = ball.offsetWidth / 2;
-  var startScroll = window.pageYOffset;
-  var vh          = window.innerHeight;
-
-  // where the kickoff button should sit in the viewport when we arrive (lower
-  // third) so it stays visible and the ball reads as dropping onto it
-  var kRect       = kickoff.getBoundingClientRect();
-  var kAbsTop     = kRect.top + startScroll;                    // document-space top
-  var maxScroll   = Math.max(0, document.documentElement.scrollHeight - vh);
-  var targetScroll = clamp(kAbsTop - vh * 0.70, 0, maxScroll);
-
-  // START (on the CTA) and END (on the kickoff button), both in VIEWPORT coords
+  var half    = ball.offsetWidth / 2;
   var ctaRect = cta.getBoundingClientRect();
-  var startX  = ctaRect.left + ctaRect.width / 2;
-  var startY  = ctaRect.top - half - 2;                         // resting on top of the CTA
-  var endX    = kRect.left + kRect.width / 2;
-  var endY    = (kAbsTop - targetScroll) - half - 2;            // resting on top of the button
 
   // hand the journey off from the hero ball to this one (no two balls on screen)
   if (heroBall) { heroBall.style.opacity = "0"; }
@@ -431,37 +419,101 @@ function startBuilderBall() {
   ball.style.margin = "0";
   ball.style.transition = "none";
   ball.style.opacity = "1";
-  placeBall(ball, startX, startY);
+  placeBall(ball, ctaRect.left + ctaRect.width / 2, ctaRect.top - half - 2);
   ball.style.transform = "rotate(0deg)";
 
-  // drive the scroll ourselves (exact per-frame), so turn OFF CSS smooth-scroll
+  // visit each proof card once, then finish on the kickoff button
+  builderTourActive = true;
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".proof-card"));
+  var i = 0;
+  function next() {
+    if (!builderTourActive) { return; }                          // a choice cancelled the tour
+    if (i < cards.length) {
+      glideBallToEl(ball, cards[i++], 0.5, 440, true, next);     // centre + hop on the card
+    } else {
+      glideBallToEl(ball, kickoff, 0.62, 540, false, function () {
+        builderTourActive = false;                               // tour done
+        handoffBuilderBallToIdle(builder, ball, kickoff);        // bounce on the button
+      });
+    }
+  }
+  // end of next()
+
+  next();
+}
+// end of startBuilderBall()
+
+// glides the viewport-fixed ball so it rests on top of `el`, scrolling the page so
+// `el` sits at `vhFrac` of the viewport — both driven by one eased clock. Optionally
+// adds a single hop on arrival, then calls done().
+function glideBallToEl(ball, el, vhFrac, T, hopOnArrival, done) {
+  var startScroll = window.pageYOffset;
+  var vh          = window.innerHeight;
+  var rect        = el.getBoundingClientRect();
+  var elAbsTop    = rect.top + startScroll;                     // document-space
+  var elAbsCenter = elAbsTop + rect.height / 2;
+  var maxScroll   = Math.max(0, document.documentElement.scrollHeight - vh);
+  var targetScroll = clamp(elAbsCenter - vh * vhFrac, 0, maxScroll);
+
+  var half = ball.offsetWidth / 2;
+  var endX = rect.left + rect.width / 2;
+  var endY = (elAbsTop - targetScroll) - half - 2;              // rest just on top of el
+
+  // current (fixed) ball centre = where the previous segment left it
+  ball.style.transition = "none";
+  var cur    = ball.getBoundingClientRect();
+  var startX = cur.left + cur.width / 2;
+  var startY = cur.top  + cur.height / 2;
+
   var htmlEl = document.documentElement;
   var prevBehavior = htmlEl.style.scrollBehavior;
-  htmlEl.style.scrollBehavior = "auto";
+  htmlEl.style.scrollBehavior = "auto";                         // exact per-frame scroll
 
-  var T  = 880;                                                 // ms for the whole move
   var t0 = performance.now();
   function frame(now) {
+    if (!builderTourActive) {                                   // cancelled (a choice was made)
+      htmlEl.style.scrollBehavior = prevBehavior;
+      return;
+    }
+    // end of if-block
+
     var t = clamp((now - t0) / T, 0, 1);
-    var e = easeInOut(t);                                       // ONE clock for both
+    var e = easeInOut(t);
     window.scrollTo(0, startScroll + (targetScroll - startScroll) * e);
     placeBall(ball, startX + (endX - startX) * e, startY + (endY - startY) * e);
-    ball.style.transform = "rotate(" + (e * 540) + "deg)";
+    ball.style.transform = "rotate(" + (e * 460) + "deg)";
 
     if (t < 1) {
       requestAnimationFrame(frame);
-      return;                                                   // still moving
+      return;                                                   // still gliding
     }
     // end of if-block
 
     htmlEl.style.scrollBehavior = prevBehavior;                 // restore smooth scroll
-    handoffBuilderBallToIdle(builder, ball, kickoff);           // bounce on the button
+    if (hopOnArrival) {
+      bounceBallOnce(ball, endX, endY, done);
+    } else if (done) {
+      done();
+    }
+    // end of if-block
   }
   // end of frame()
 
   requestAnimationFrame(frame);
 }
-// end of startBuilderBall()
+// end of glideBallToEl()
+
+// one quick hop in place (ball stays viewport-fixed; the page is static here)
+function bounceBallOnce(ball, cx, restY, done) {
+  dropBallTo(ball, cx, restY - 22, 190, 520, CONFIG.ballRiseEase, function () {
+    if (!builderTourActive) { return; }                          // cancelled mid-hop
+    dropBallTo(ball, cx, restY, 180, 570, CONFIG.ballFallEase, function () {
+      if (!builderTourActive) { return; }
+      if (done) { done(); }
+    });
+  });
+}
+// end of bounceBallOnce()
 
 // switches the ball from viewport-fixed back to absolute-in-builder (so it tracks
 // the button if the page scrolls) and starts the idle bounce on the kickoff button
@@ -504,6 +556,8 @@ function builderIdleBounce(ball, cx, restY) {
 
 // a formation was chosen: stop bouncing and drop onto the kickoff button
 function dropBuilderBallToKickoff() {
+  var wasTouring = builderTourActive;                           // picked mid proof-tour?
+  builderTourActive = false;                                    // cancel the tour
   builderBallIdle = false;                                      // stop the idle bounce
 
   var builder = document.getElementById("builder");
@@ -516,6 +570,9 @@ function dropBuilderBallToKickoff() {
   }
   // end of if-block
 
+  document.documentElement.style.scrollBehavior = "";          // the tour may have left it off
+  ball.style.position = "absolute";                            // back into the builder's space
+
   // re-read geometry: enabling kickoff / picking may have reflowed the layout
   var bRect = builder.getBoundingClientRect();
   var kb    = rectInHero(kickoff, bRect);
@@ -523,6 +580,15 @@ function dropBuilderBallToKickoff() {
   var landY = kb.top - half + 4;                                // rest on top of the kickoff button
 
   ball.style.opacity = "1";
+  // if the choice interrupted the tour, snap the ball above the button first so the
+  // drop reads cleanly (it was viewport-fixed mid-glide a moment ago)
+  if (wasTouring) {
+    ball.style.transition = "none";
+    placeBall(ball, kb.cx, kb.top - half - 44);
+    void ball.offsetWidth;
+  }
+  // end of if-block
+
   dropBallTo(ball, kb.cx, landY, CONFIG.ballRespawnFallMs, 520, CONFIG.ballFallEase, function () {
     // small settle bounce so it reads as landing
     dropBallTo(ball, kb.cx, landY - CONFIG.ballSettleHopPx, CONFIG.ballSettleMs, 540, CONFIG.ballRiseEase, function () {
