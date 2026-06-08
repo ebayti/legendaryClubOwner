@@ -157,10 +157,10 @@ function dropBallTo(ball, x, y, ms, spin, vEase, done) {
 // end of dropBallTo()
 
 // the video plays WITH sound, but only after a user gesture (browser policy). So
-// the ball bounces on the video as a lure and the first tap starts it with sound.
+// the video autoplays muted; the first tap unmutes it (reliable). the ball just
+// drops onto the video and fades (no bounce), then ACT 2 brings it to the CTA.
 var userWantsSound = true;
-var videoTapped    = false;   // true once the first tap has started the video
-var heroIdleActive = false;   // true while the ball bounces on the video, awaiting a tap
+var videoTapped    = false;   // true once the first tap has started the sound
 var heroTapWired   = false;   // the document tap handler is armed only once
 
 // makes the corner button's icon + labels match the video's real mute state
@@ -213,29 +213,6 @@ function wireSoundToggle() {
 }
 // end of wireSoundToggle()
 
-// the ball bounces in place on the video until the user taps. stops the instant
-// `heroIdleActive` goes false (a tap was registered).
-function heroIdleBounce(ball, cx, restY) {
-  heroIdleActive = true;
-  var hop  = 30;
-  var upMs = 360;
-  var spin = 220;
-
-  function up() {
-    if (!heroIdleActive) { return; }                            // tapped -> stop
-    spin += 50;
-    dropBallTo(ball, cx, restY - hop, upMs, spin, CONFIG.ballRiseEase, function () {
-      if (!heroIdleActive) { return; }
-      spin += 50;
-      dropBallTo(ball, cx, restY, Math.round(upMs * 0.9), spin, CONFIG.ballFallEase, up);
-    });
-  }
-  // end of up()
-
-  up();
-}
-// end of heroIdleBounce()
-
 // ONE tap = turn the sound ON. The video is already autoplaying MUTED, and
 // UNMUTING an already-playing video on a gesture is what browsers reliably allow
 // (starting an unmuted video from scratch often gets downgraded to muted). Also
@@ -252,7 +229,6 @@ function startHeroVideoWithSound() {
   // end of if-block
 
   videoTapped = true;
-  heroIdleActive = false;                                       // stop the lure bounce
 
   if (ball) {
     ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
@@ -350,8 +326,9 @@ function runHeroBall() {
 
     var landY = vid.top + half + 6;                             // resting on the video
     dropBallTo(ball, vid.cx, landY, CONFIG.ballDropToVideoMs, 240, CONFIG.ballFallEase, function () {
-      // landed -> bounce on the video until a tap unmutes it (unless already tapped)
-      if (!videoTapped) { heroIdleBounce(ball, vid.cx, landY); }
+      // landed -> fade out (the video is autoplaying; ACT 2 brings the ball back to the CTA)
+      ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
+      ball.style.opacity = "0";
     });
   }, CONFIG.ballStartDelayMs);
 
@@ -387,7 +364,6 @@ function runHeroBall() {
 // ACT 2 — the ball reappears just under the video and drops onto the CTA button,
 // finishing with a small settle bounce so it reads as landing, not teleporting.
 function respawnBallToCta(hero, ball, box, cta) {
-  heroIdleActive = false;                                       // stop the lure bounce if still running
   var heroRect = hero.getBoundingClientRect();                  // re-read: layout may have shifted
   var vid  = rectInHero(box, heroRect);
   var ctaR = rectInHero(cta, heroRect);

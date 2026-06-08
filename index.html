@@ -21,11 +21,14 @@
   <header class="hero" id="hero">
     <div class="hero-glow" aria-hidden="true"></div>
 
+    <!-- brand line, pinned to the very top of the screen -->
+    <p class="hero-brand">LEGENDARY CLUB OWNER</p>
+
     <!-- the falling ball: animated entirely from script.js -->
     <img class="hero-ball" id="hero-ball" src="assets/football.png" alt="" aria-hidden="true" />
 
     <div class="hero-inner">
-      <p class="hero-kicker">LEGENDARY CLUB OWNER</p>
+      <p class="hero-kicker">Tired of losing to pay-to-win players?</p>
 
       <!-- the ball drops onto this video, then (just before it ends) respawns below it -->
       <div class="hero-video-wrap" id="hero-video-wrap">
@@ -36,11 +39,8 @@
           playsinline
           preload="auto"
         ></video>
-        <!-- the "tap the screen" prompt; fades out once the user taps -->
-        <p class="hero-tap-hint" id="hero-tap-hint" aria-hidden="true">
-          Tired of losing to pay-to-win players?<br />
-          <span class="hint-cta"><strong>Tap</strong> — there's a better way.</span>
-        </p>
+        <!-- the "tap to hear" prompt; fades out once the user taps -->
+        <p class="hero-tap-hint" id="hero-tap-hint" aria-hidden="true">🔊 Tap to hear!</p>
         <!-- one tap plays the video WITH sound; afterwards this toggles mute -->
         <button
           class="video-sound-toggle"
