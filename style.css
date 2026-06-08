@@ -169,7 +169,7 @@ body {
   animation: tapPulse 1.6s ease-in-out infinite;
   transition: opacity 0.3s ease;
 }
-.hero-tap-hint.gone { opacity: 0; }
+.hero-tap-hint.gone { opacity: 0; animation: none; }   /* stop the pulse so it actually hides */
 @keyframes tapPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 
 /* tap-to-unmute pill in the corner of the video */

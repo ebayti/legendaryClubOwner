@@ -14,8 +14,6 @@ Built for one persona: Alex, 24, London, casual mobile football gamer, 5 seconds
 /style.css              all styling (strict dark "cyber" palette)
 /script.js              CONFIG + ball animation + sim logic + store routing
 /assets/                football.png (the ball), video.mp4 (hero), pitch.svg
-/tests/sim.spec.js      Playwright test (bonus) — runs vs local OR the live URL
-/playwright.config.js   reads BASE_URL, 15s expect timeout for the 10s sim
 /package.json           scripts + devDependencies
 /README.md              this file
 ```
