@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# logs
+serve.log
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# local tooling / agent files
+.claude/
+
+# case-study brief & working scratch — NOT part of the deployed site
+test.md
+archive/
+*.pdf

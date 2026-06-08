@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legendary Club Owner — No scripting. No luck. Just management.</title>
+  <meta name="description" content="Build your club, set your tactics, beat real managers — and get paid for it. No scripting, no luck, no pay-to-win." />
+
+  <!-- distinctive type: Anton (athletic display) + Sora (clean body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- HERO — first fixation, hook, single CTA                       -->
+  <!-- ============================================================ -->
+  <header class="hero" id="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+
+    <!-- the falling ball: animated entirely from script.js -->
+    <img class="hero-ball" id="hero-ball" src="assets/football.png" alt="" aria-hidden="true" />
+
+    <div class="hero-inner">
+      <p class="hero-kicker">LEGENDARY CLUB OWNER</p>
+
+      <!-- the ball drops onto this video, then (just before it ends) respawns below it -->
+      <div class="hero-video-wrap" id="hero-video-wrap">
+        <video
+          class="hero-video"
+          id="hero-video"
+          src="assets/video.mp4"
+          playsinline
+          preload="auto"
+        ></video>
+        <!-- autoplay must be muted (browser policy); this lets Alex turn sound on -->
+        <button
+          class="video-sound-toggle"
+          id="video-sound-toggle"
+          type="button"
+          aria-label="Unmute video"
+          aria-pressed="false"
+        >🔇</button>
+      </div>
+
+      <h1 class="headline" id="headline">
+        No pay-to-win.<br /><span class="headline-accent">Just management.</span>
+      </h1>
+
+      <p class="subheadline">
+        Build your club, set your tactics, beat real managers and get paid for it with real money.
+      </p>
+
+      <a class="cta" id="cta" href="#builder">Take the shot!</a>
+    </div>
+
+    <a class="hero-scroll-hint" href="#builder" aria-label="Scroll to the demo">▾</a>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- PROOF — real facts only, ordered along the gaze path          -->
+  <!-- ============================================================ -->
+  <section class="proof" aria-label="Why it is fair">
+    <ul class="proof-grid">
+      <li class="proof-card">
+        <span class="proof-tag live">LIVE NOW</span>
+        <p>Live in Turkey. International launch coming.</p>
+      </li>
+      <li class="proof-card">
+        <span class="proof-tag">REAL CASH</span>
+        <p>Real cash rewards — already paid to top managers.</p>
+      </li>
+      <li class="proof-card">
+        <span class="proof-tag">FAIR</span>
+        <p>Free to play. No pay-to-win.</p>
+      </li>
+      <li class="proof-card">
+        <span class="proof-tag">SKILL</span>
+        <p>Skill, not luck — every result is your decision.</p>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- LINEUP BUILDER — the interactive element (core-loop demo)     -->
+  <!-- ============================================================ -->
+  <section class="builder" id="builder" aria-label="Lineup builder and match sim">
+    <!-- the ball continues here: drops in on the CTA tap, bounces until a choice -->
+    <img class="builder-ball" id="builder-ball" src="assets/football.png" alt="" aria-hidden="true" />
+    <div class="builder-head">
+      <h2 class="builder-title">You pick the lineup. Which formation is your game?</h2>
+      <p class="builder-sub">
+        The opponent lines up flat in a <strong>4-4-2</strong>. Pick your shape, then kick off!
+        The weak one gets beaten. It's your call, not a dice roll or momentum.
+      </p>
+    </div>
+
+    <!-- formation choice: Alex picks one of four -->
+    <div class="formation-picker" id="formation-picker" role="radiogroup" aria-label="Choose your formation">
+      <button class="formation-card" data-formation="4-2-3-1" role="radio" aria-checked="false">
+        <span class="formation-name">4-2-3-1</span>
+        <span class="formation-label">Midfield Control</span>
+        <span class="formation-note">Three-man midfield overload</span>
+      </button>
+      <button class="formation-card" data-formation="4-3-3" role="radio" aria-checked="false">
+        <span class="formation-name">4-3-3</span>
+        <span class="formation-label">Attack</span>
+        <span class="formation-note">Midfield three + wing pressure</span>
+      </button>
+      <button class="formation-card" data-formation="4-4-2" role="radio" aria-checked="false">
+        <span class="formation-name">4-4-2</span>
+        <span class="formation-label">Balanced</span>
+        <span class="formation-note">Mirror tactic, no tactical advantage</span>
+      </button>
+      <button class="formation-card" data-formation="5-4-1" role="radio" aria-checked="false">
+        <span class="formation-name">5-4-1</span>
+        <span class="formation-label">Defensive</span>
+        <span class="formation-note">More defenisve, prevent opponent scoring</span>
+      </button>
+    </div>
+
+    <button class="kickoff-btn" id="kickoff-btn" disabled>Pick a formation first</button>
+
+    <!-- the match arena: scoreboard + top-down pitch -->
+    <div class="arena" id="arena" hidden>
+      <div class="scoreboard">
+        <span class="team team-you">YOU</span>
+        <span class="score" id="score">0 – 0</span>
+        <span class="team team-opp">CPU</span>
+        <span class="timer" id="timer">0:00</span>
+      </div>
+      <canvas class="pitch" id="pitch" width="720" height="440" aria-label="Top-down match in progress"></canvas>
+
+      <!-- result overlay: Well Done / Try Again -->
+      <div class="result-overlay" id="result-overlay" hidden>
+        <h3 class="result-title" id="result-title">Well Done</h3>
+        <p class="result-msg" id="result-msg">That counter cracked the 4-4-2.</p>
+        <button class="result-action" id="result-action">Get the game</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                        -->
+  <!-- ============================================================ -->
+  <footer class="site-footer">
+    <p>Legendary Club Owner — management, real rivals, real cash. Skill, not luck.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
