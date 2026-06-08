@@ -174,7 +174,9 @@ function syncSoundToggle() {
 }
 // end of syncSoundToggle()
 
-// wires the corner speaker button: toggles sound and keeps the video playing
+// wires the corner speaker button. BEFORE the video has started, a tap here does
+// the same as tapping the screen: play WITH sound (one tap). AFTER it's playing,
+// it just toggles mute.
 function wireSoundToggle() {
   var video = document.getElementById("hero-video");
   var btn   = document.getElementById("video-sound-toggle");
@@ -185,18 +187,27 @@ function wireSoundToggle() {
   }
   // end of if-block
 
-  btn.addEventListener("click", function (e) {
-    e.stopPropagation();                                        // don't re-trigger the wrap's play handler
-    userWantsSound = video.muted;                               // turning sound ON?
-    video.muted = !video.muted;
+  // a tap on the button must NOT also fire the document tap-to-play handler
+  btn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
 
-    // make sure it is actually playing when sound comes on (the tap is a gesture)
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    // first interaction: behave exactly like a screen tap — play with sound
+    if (!videoTapped) {
+      startHeroVideoWithSound();
+      return;
+    }
+    // end of if-block
+
+    // already playing: normal mute / unmute
+    userWantsSound = video.muted;
+    video.muted = !video.muted;
     if (!video.muted) {
       var p = video.play();
       if (p && p.catch) { p.catch(function () {}); }
     }
     // end of if-block
-
     syncSoundToggle();
   });
 }
@@ -225,38 +236,52 @@ function heroIdleBounce(ball, cx, restY) {
 }
 // end of heroIdleBounce()
 
-// arms a one-time "first tap anywhere" handler: it plays the video WITH SOUND
-// (the tap is the gesture the browser needs), stops the lure bounce and fades the
-// ball out. ACT 2 brings the ball back near the video's end.
-function wireHeroTap(video, ball) {
+// ONE tap = play the video AND turn sound on. Stops the lure bounce, fades the
+// ball + the tap hint. Shared by the screen-tap handler and the sound button.
+function startHeroVideoWithSound() {
+  var video = document.getElementById("hero-video");
+  var ball  = document.getElementById("hero-ball");
+  var hint  = document.getElementById("hero-tap-hint");
+
+  // guard clause: nothing to do / already started
+  if (!video || videoTapped) {
+    return;
+  }
+  // end of if-block
+
+  videoTapped = true;
+  heroIdleActive = false;                                       // stop the lure bounce
+
+  if (ball) {
+    ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
+    ball.style.opacity = "0";                                   // the lure did its job
+  }
+  // end of if-block
+  if (hint) { hint.classList.add("gone"); }                    // fade the tap prompt
+
+  userWantsSound = true;
+  video.muted = false;                                          // the tap allows sound
+  var p = video.play();
+  if (p && p.catch) {
+    p.catch(function () {                                        // blocked? fall back to muted
+      video.muted = true;
+      video.play().catch(function () {});
+      syncSoundToggle();
+    });
+  }
+  syncSoundToggle();
+}
+// end of startHeroVideoWithSound()
+
+// arms a one-time "first tap anywhere" handler that starts the video with sound
+function wireHeroTap() {
   if (heroTapWired) { return; }
   heroTapWired = true;
 
-  function go(e) {
+  function go() {
     document.removeEventListener("pointerdown", go);
     document.removeEventListener("keydown", go);
-    videoTapped = true;
-    heroIdleActive = false;                                     // stop the lure bounce
-
-    // the lure ball did its job — fade it out
-    ball.style.transition = "opacity " + CONFIG.ballFadeMs + "ms ease";
-    ball.style.opacity = "0";
-
-    // if the tap landed on the sound toggle, let ITS handler play/unmute
-    var onToggle = e && e.target && e.target.closest && e.target.closest("#video-sound-toggle");
-    if (onToggle) { return; }
-
-    userWantsSound = true;
-    video.muted = false;                                        // the tap allows sound
-    var p = video.play();
-    if (p && p.catch) {
-      p.catch(function () {                                      // blocked? fall back to muted
-        video.muted = true;
-        video.play().catch(function () {});
-        syncSoundToggle();
-      });
-    }
-    syncSoundToggle();
+    startHeroVideoWithSound();
   }
   // end of go()
 
@@ -289,7 +314,7 @@ function runHeroBall() {
   ball.style.marginLeft = "0";                                  // we position by centre instead
 
   // arm the tap-to-play handler now (works even if the user taps mid-drop)
-  wireHeroTap(video, ball);
+  wireHeroTap();
 
   // respect reduced-motion: skip the drama, rest the ball on the CTA (tap still plays)
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -472,8 +497,8 @@ function startBuilderBall() {
   function next() {
     if (!builderTourActive) { return; }                          // a choice cancelled the tour
     if (i < cards.length) {
-      // centre the card and hop on it TWICE (slower descent + dwell, so it's readable)
-      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 760, hops: 2, done: next });
+      // centre the card and hop on it ONCE (a bit higher, natural arc) so it's readable
+      glideBallToEl(ball, cards[i++], { vhFrac: 0.5, anchorCenter: true, T: 760, hops: 1, done: next });
     } else {
       // land on kickoff, but anchor the scroll to the builder TOP so the heading shows
       glideBallToEl(ball, kickoff, { scrollEl: builder, vhFrac: 0.07, T: 640, hops: 0, done: function () {
@@ -561,9 +586,10 @@ function glideBallToEl(ball, landEl, opts) {
 function bounceBall(ball, cx, restY, hops, done) {
   function hop(n) {
     if (!builderTourActive) { return; }                          // cancelled mid-hop
-    dropBallTo(ball, cx, restY - 26, 240, 520, CONFIG.ballRiseEase, function () {
+    // up a good height (decelerating), then a natural accelerating fall
+    dropBallTo(ball, cx, restY - 44, 300, 520, CONFIG.ballRiseEase, function () {
       if (!builderTourActive) { return; }
-      dropBallTo(ball, cx, restY, 260, 570, CONFIG.ballFallEase, function () {
+      dropBallTo(ball, cx, restY, 380, 570, CONFIG.ballFallEase, function () {
         if (!builderTourActive) { return; }
         if (n > 1) { hop(n - 1); }
         else if (done) { done(); }

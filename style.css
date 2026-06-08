@@ -124,6 +124,7 @@ body {
   overflow: hidden;
   border: 1px solid var(--line);
   box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  cursor: pointer;               /* the whole video invites a tap */
 }
 .hero-video {
   display: block;
@@ -132,6 +133,29 @@ body {
   max-width: min(460px, 82vw);   /* never wider than the column or the phone */
   max-height: 48svh;             /* leave room for the headline + CTA below */
 }
+
+/* "tap the screen" prompt over the bottom of the video; fades once it plays */
+.hero-tap-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 30px 14px 12px;
+  text-align: center;
+  font-size: 0.84rem;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--ink);
+  background: linear-gradient(to top, rgba(5,17,14,0.92), rgba(5,17,14,0));
+  pointer-events: none;          /* taps fall through to the page/video */
+  animation: tapPulse 1.6s ease-in-out infinite;
+  transition: opacity 0.3s ease;
+}
+.hero-tap-hint strong { color: var(--neon); }
+.hero-tap-hint.gone { opacity: 0; }
+@keyframes tapPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
 
 /* tap-to-unmute pill in the corner of the video */
 .video-sound-toggle {

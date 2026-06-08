@@ -36,7 +36,11 @@
           playsinline
           preload="auto"
         ></video>
-        <!-- autoplay must be muted (browser policy); this lets Alex turn sound on -->
+        <!-- the "tap the screen" prompt; fades out once the video starts -->
+        <p class="hero-tap-hint" id="hero-tap-hint" aria-hidden="true">
+          Tired of losing to credit cards? <strong>Tap</strong> — there's a better way.
+        </p>
+        <!-- one tap plays the video WITH sound; afterwards this toggles mute -->
         <button
           class="video-sound-toggle"
           id="video-sound-toggle"
